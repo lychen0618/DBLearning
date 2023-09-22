@@ -40,12 +40,13 @@ class LRUKNode {
   void SetEvictable(bool is_evictable) { is_evictable_ = is_evictable; }
   auto GetBackwardKDis() -> size_t { return history_.size() == k_ ? history_.front() : 0; }
   auto GetLeastRecent() -> size_t { return history_.front(); }
+
  private:
   /** History of last seen K timestamps of this page. Least recent timestamp stored in front. */
   // Remove maybe_unused if you start using them. Feel free to change the member variables as you want.
   std::list<size_t> history_;
   size_t k_;
-  frame_id_t fid_;
+  [[maybe_unused]] frame_id_t fid_;
   bool is_evictable_{false};
 };
 

@@ -22,7 +22,7 @@ auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
     latch_.unlock();
     return false;
   }
-  std::unordered_map<frame_id_t, LRUKNode>::iterator evict = node_store_.end();
+  auto evict = node_store_.end();
   for (auto cur = node_store_.begin(); cur != node_store_.end(); ++cur) {
     if (!cur->second.GetEvictable()) {
       continue;
@@ -40,8 +40,9 @@ auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
     }
   }
   *frame_id = evict->first;
+  --curr_size_;
+  node_store_.erase(*frame_id);
   latch_.unlock();
-  Remove(*frame_id);
   return true;
 }
 
@@ -78,10 +79,13 @@ void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
 void LRUKReplacer::Remove(frame_id_t frame_id) {
   latch_.lock();
   auto it = node_store_.find(frame_id);
-  if (it != node_store_.end() && it->second.GetEvictable()) {
+  if (it != node_store_.end()) {
+    if (!it->second.GetEvictable()) {
+      throw ExecutionException("Remove a non-evictable frame");
+    }
     --curr_size_;
+    node_store_.erase(frame_id);
   }
-  node_store_.erase(frame_id);
   latch_.unlock();
 }
 

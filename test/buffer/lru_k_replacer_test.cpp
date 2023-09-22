@@ -95,4 +95,34 @@ TEST(LRUKReplacerTest, SampleTest) {
   ASSERT_EQ(false, lru_replacer.Evict(&value));
   ASSERT_EQ(0, lru_replacer.Size());
 }
+
+TEST(LRUKReplacerTest, ConcurrencyTest) {
+  const size_t frame_num = 100;
+  LRUKReplacer lru_replacer(frame_num, 2);
+  std::vector<std::thread> threads;
+
+  for (int tid = 0; tid < 4; tid++) {
+    std::thread t([&lru_replacer, tid] {
+      int count = 0;
+      for (int i = 0; i < static_cast<int>(frame_num); i++) {
+        if (i % 4 == tid) {
+          lru_replacer.RecordAccess(i);
+          lru_replacer.SetEvictable(i, true);
+          count++;
+        }
+      }
+      int value;
+      for (int i = 0; i < count; ++i) {
+        EXPECT_TRUE(lru_replacer.Evict(&value));
+      }
+    });
+    threads.push_back(std::move(t));
+  }
+
+  for (auto &t : threads) {
+    t.join();
+  }
+
+  EXPECT_EQ(0, lru_replacer.Size());
+}
 }  // namespace bustub
