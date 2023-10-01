@@ -62,7 +62,7 @@ auto BufferPoolManager::NewPage(page_id_t *page_id) -> Page * {
   page_id_t new_page_id = AllocatePage();
   pages_[frame_id].page_id_ = new_page_id;
   pages_[frame_id].pin_count_ = 1;
-  pages_[frame_id].is_dirty_ = false;
+  pages_[frame_id].is_dirty_ = true;
   page_table_[new_page_id] = frame_id;
   replacer_->RecordAccess(frame_id);
   replacer_->SetEvictable(frame_id, false);
