@@ -27,6 +27,9 @@ INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Init(int max_size) {
   SetPageType(IndexPageType::INTERNAL_PAGE);
   SetSize(1);
+  if (static_cast<uint64_t>(max_size) >= INTERNAL_PAGE_SIZE) {
+    max_size = INTERNAL_PAGE_SIZE - 1;
+  }
   SetMaxSize(max_size);
 }
 /*
@@ -43,9 +46,9 @@ auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::KeyAt(int index) const -> KeyType {
 
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetKeyAt(int index, const KeyType &key) {
-  if (index == 0) {
-    throw ExecutionException("The input index is invalid");
-  }
+  // if (index == 0) {
+  //   throw ExecutionException("The input index is invalid");
+  // }
   array_[index].first = key;
 }
 

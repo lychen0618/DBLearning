@@ -66,8 +66,8 @@ class BPlusTree {
 
  public:
   explicit BPlusTree(std::string name, page_id_t header_page_id, BufferPoolManager *buffer_pool_manager,
-                     const KeyComparator &comparator, int leaf_max_size = LEAF_PAGE_SIZE,
-                     int internal_max_size = INTERNAL_PAGE_SIZE);
+                     const KeyComparator &comparator, int leaf_max_size = LEAF_PAGE_SIZE - 1,
+                     int internal_max_size = INTERNAL_PAGE_SIZE - 1);
 
   // Returns true if this B+ tree has no keys and values.
   auto IsEmpty() const -> bool;
@@ -128,6 +128,9 @@ class BPlusTree {
   void BatchOpsFromFile(const std::string &file_name, Transaction *txn = nullptr);
 
  private:
+  auto LeafBinarySearch(const BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *page, const KeyType &key) -> int;
+  auto InternalBinarySearch(const BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator> *page, const KeyType &key)
+      -> int;
   /* Debug Routines for FREE!! */
   void ToGraph(page_id_t page_id, const BPlusTreePage *page, std::ofstream &out);
 

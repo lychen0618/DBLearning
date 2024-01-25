@@ -29,6 +29,9 @@ INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::Init(int max_size) {
   SetPageType(IndexPageType::LEAF_PAGE);
   SetSize(0);
+  if (static_cast<uint64_t>(max_size) >= LEAF_PAGE_SIZE) {
+    max_size = LEAF_PAGE_SIZE - 1;
+  }
   SetMaxSize(max_size);
   SetNextPageId(INVALID_PAGE_ID);
 }
@@ -64,6 +67,14 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::ValueAt(int index) const -> ValueType {
     throw ExecutionException("The input index is invalid");
   }
   return array_[index].second;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_LEAF_PAGE_TYPE::PairAt(int index) const -> const MappingType & {
+  if (index < 0 || index >= GetSize()) {
+    throw ExecutionException("The input index is invalid");
+  }
+  return array_[index];
 }
 
 template class BPlusTreeLeafPage<GenericKey<4>, RID, GenericComparator<4>>;
