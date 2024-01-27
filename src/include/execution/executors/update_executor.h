@@ -64,7 +64,13 @@ class UpdateExecutor : public AbstractExecutor {
   /** Metadata identifying the table that should be updated */
   const TableInfo *table_info_;
 
+  std::vector<IndexInfo *> index_info_arr_;
+
   /** The child executor to obtain value from */
   std::unique_ptr<AbstractExecutor> child_executor_;
+
+  Schema schema_;
+
+  bool finished;
 };
 }  // namespace bustub
