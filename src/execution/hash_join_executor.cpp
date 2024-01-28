@@ -15,6 +15,14 @@
 
 namespace bustub {
 
+auto HJGetValuesHelper(const Tuple *tuple, const Schema *schema) -> std::vector<Value> {
+  std::vector<Value> values{};
+  for (uint32_t i = 0; i < schema->GetColumnCount(); ++i) {
+    values.push_back(tuple->GetValue(schema, i));
+  }
+  return values;
+}
+
 HashJoinExecutor::HashJoinExecutor(ExecutorContext *exec_ctx, const HashJoinPlanNode *plan,
                                    std::unique_ptr<AbstractExecutor> &&left_child,
                                    std::unique_ptr<AbstractExecutor> &&right_child)
@@ -32,7 +40,7 @@ HashJoinExecutor::HashJoinExecutor(ExecutorContext *exec_ctx, const HashJoinPlan
 void HashJoinExecutor::Init() {
   left_executor_->Init();
   l_status_ = left_executor_->Next(&left_tuple_, &l_rid_);
-  matched = false;
+  matched_ = false;
   if (!l_status_) {
     return;
   }
@@ -57,22 +65,22 @@ auto HashJoinExecutor::Next(Tuple *tuple, RID *rid) -> bool {
   while (l_status_) {
     auto iter = hht_.Find(&left_tuple_, left_executor_->GetOutputSchema());
     if (iter == hht_.End()) {
-      if (!matched && plan_->GetJoinType() == JoinType::LEFT) {
+      if (!matched_ && plan_->GetJoinType() == JoinType::LEFT) {
         // merge left_tuple and right_tuple
-        std::vector<Value> l_values = left_tuple_.GetValues(&left_executor_->GetOutputSchema());
+        std::vector<Value> l_values = HJGetValuesHelper(&left_tuple_, &left_executor_->GetOutputSchema());
         std::vector<Value> r_values{};
         for (auto &col : right_executor_->GetOutputSchema().GetColumns()) {
           r_values.emplace_back(ValueFactory::GetNullValueByType(col.GetType()));
         }
         l_values.insert(l_values.end(), r_values.begin(), r_values.end());
         *tuple = Tuple{l_values, &GetOutputSchema()};
-        matched = true;
+        matched_ = true;
         return true;
       }
     } else {
       if (value_idx_ < iter->second.size()) {
         // merge left_tuple and right_tuple
-        std::vector<Value> l_values = left_tuple_.GetValues(&left_executor_->GetOutputSchema());
+        std::vector<Value> l_values = HJGetValuesHelper(&left_tuple_, &left_executor_->GetOutputSchema());
         const std::vector<Value> &r_values = iter->second[value_idx_].values_;
         l_values.insert(l_values.end(), r_values.begin(), r_values.end());
         *tuple = Tuple{l_values, &GetOutputSchema()};
@@ -81,7 +89,7 @@ auto HashJoinExecutor::Next(Tuple *tuple, RID *rid) -> bool {
       }
     }
     l_status_ = left_executor_->Next(&left_tuple_, &l_rid_);
-    matched = false;
+    matched_ = false;
     value_idx_ = 0;
   }
   return false;

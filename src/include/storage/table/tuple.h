@@ -93,8 +93,6 @@ class Tuple {
   // checks the schema to see how to return the Value.
   auto GetValue(const Schema *schema, uint32_t column_idx) const -> Value;
 
-  auto GetValues(const Schema *schema) const -> std::vector<Value>;
-
   // Generates a key tuple given schemas and attributes
   auto KeyFromTuple(const Schema &schema, const Schema &key_schema, const std::vector<uint32_t> &key_attrs) -> Tuple;
 

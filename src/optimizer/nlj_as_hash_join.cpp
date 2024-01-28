@@ -21,8 +21,8 @@ auto IsColumnEqualExpr(const AbstractExpressionRef &expr, std::vector<AbstractEx
                        std::vector<AbstractExpressionRef> &right_key_exprs) -> bool {
   if (const auto *cmp_expr = dynamic_cast<const ComparisonExpression *>(expr.get());
       cmp_expr != nullptr && cmp_expr->GetChildren().size() == 2) {
-    const ColumnValueExpression *col_expr0 = dynamic_cast<const ColumnValueExpression *>(cmp_expr->GetChildAt(0).get());
-    const ColumnValueExpression *col_expr1 = dynamic_cast<const ColumnValueExpression *>(cmp_expr->GetChildAt(1).get());
+    const auto *col_expr0 = dynamic_cast<const ColumnValueExpression *>(cmp_expr->GetChildAt(0).get());
+    const auto *col_expr1 = dynamic_cast<const ColumnValueExpression *>(cmp_expr->GetChildAt(1).get());
     if (col_expr0 != nullptr && col_expr1 != nullptr && col_expr0->GetTupleIdx() != col_expr1->GetTupleIdx()) {
       if (col_expr0->GetTupleIdx() == 0) {
         left_key_exprs.emplace_back(cmp_expr->GetChildAt(0));
@@ -71,7 +71,7 @@ auto Optimizer::OptimizeNLJAsHashJoin(const AbstractPlanNodeRef &plan) -> Abstra
       auto node =
           std::make_unique<HashJoinPlanNode>(nlj_plan.output_schema_, nlj_plan.GetLeftPlan(), nlj_plan.GetRightPlan(),
                                              left_key_exprs, right_key_exprs, nlj_plan.GetJoinType());
-      optimized_plan = node->CloneWithChildren(std::move(optimized_plan->GetChildren()));
+      optimized_plan = node->CloneWithChildren(optimized_plan->GetChildren());
     }
   }
   return optimized_plan;

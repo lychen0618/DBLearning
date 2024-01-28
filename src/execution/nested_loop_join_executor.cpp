@@ -16,6 +16,13 @@
 #include "type/value_factory.h"
 
 namespace bustub {
+auto NLJGetValuesHelper(const Tuple *tuple, const Schema *schema) -> std::vector<Value> {
+  std::vector<Value> values{};
+  for (uint32_t i = 0; i < schema->GetColumnCount(); ++i) {
+    values.push_back(tuple->GetValue(schema, i));
+  }
+  return values;
+}
 
 NestedLoopJoinExecutor::NestedLoopJoinExecutor(ExecutorContext *exec_ctx, const NestedLoopJoinPlanNode *plan,
                                                std::unique_ptr<AbstractExecutor> &&left_executor,
@@ -44,7 +51,7 @@ auto NestedLoopJoinExecutor::Next(Tuple *tuple, RID *rid) -> bool {
     auto r_status = right_executor_->Next(&right_tuple, &r_rid);
     if (!r_status) {
       if (!matched_ && plan_->GetJoinType() == JoinType::LEFT) {
-        std::vector<Value> l_values = left_tuple_.GetValues(&left_executor_->GetOutputSchema());
+        std::vector<Value> l_values = NLJGetValuesHelper(&left_tuple_, &left_executor_->GetOutputSchema());
         std::vector<Value> r_values{};
         for (auto &col : right_executor_->GetOutputSchema().GetColumns()) {
           r_values.emplace_back(ValueFactory::GetNullValueByType(col.GetType()));
@@ -68,8 +75,8 @@ auto NestedLoopJoinExecutor::Next(Tuple *tuple, RID *rid) -> bool {
     auto value = plan_->Predicate()->EvaluateJoin(&left_tuple_, left_executor_->GetOutputSchema(), &right_tuple,
                                                   right_executor_->GetOutputSchema());
     if (!value.IsNull() && value.GetAs<bool>()) {
-      std::vector<Value> l_values = left_tuple_.GetValues(&left_executor_->GetOutputSchema());
-      std::vector<Value> r_values = right_tuple.GetValues(&right_executor_->GetOutputSchema());
+      std::vector<Value> l_values = NLJGetValuesHelper(&left_tuple_, &left_executor_->GetOutputSchema());
+      std::vector<Value> r_values = NLJGetValuesHelper(&right_tuple, &right_executor_->GetOutputSchema());
       l_values.insert(l_values.end(), r_values.begin(), r_values.end());
       *tuple = Tuple{l_values, &GetOutputSchema()};
       matched_ = true;

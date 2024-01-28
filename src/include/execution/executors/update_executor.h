@@ -71,6 +71,6 @@ class UpdateExecutor : public AbstractExecutor {
 
   Schema schema_;
 
-  bool finished;
+  bool finished_ = true;
 };
 }  // namespace bustub

@@ -15,13 +15,54 @@
 #include <memory>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
+#include "common/util/hash_util.h"
+#include "container/hash/hash_function.h"
 #include "execution/executor_context.h"
 #include "execution/executors/abstract_executor.h"
 #include "execution/plans/hash_join_plan.h"
 #include "storage/table/tuple.h"
 
 namespace bustub {
+struct HashJoinKey {
+  std::vector<Value> keys_;
+  auto operator==(const HashJoinKey &other) const -> bool {
+    for (uint32_t i = 0; i < other.keys_.size(); i++) {
+      if (keys_[i].CompareEquals(other.keys_[i]) != CmpBool::CmpTrue) {
+        return false;
+      }
+    }
+    return true;
+  }
+};
+
+struct HashJoinValue {
+  std::vector<Value> values_;
+};
+}  // namespace bustub
+
+namespace std {
+
+/** Implements std::hash on HashJoinKey */
+template <>
+struct hash<bustub::HashJoinKey> {
+  auto operator()(const bustub::HashJoinKey &hash_key) const -> std::size_t {
+    size_t curr_hash = 0;
+    for (const auto &key : hash_key.keys_) {
+      if (!key.IsNull()) {
+        curr_hash = bustub::HashUtil::CombineHashes(curr_hash, bustub::HashUtil::HashValue(&key));
+      }
+    }
+    return curr_hash;
+  }
+};
+
+}  // namespace std
+
+namespace bustub {
+auto HJGetValuesHelper(const Tuple *tuple, const Schema *schema) -> std::vector<Value>;
+
 /**
  * A simplified hash table that has all the necessary functionality for hash join.
  */
@@ -37,7 +78,7 @@ class SimpleHashJoinHashTable {
     if (ht_.count(right_join_key) == 0) {
       ht_[right_join_key] = {};
     }
-    ht_[right_join_key].emplace_back(HashJoinValue{tuple->GetValues(&schema)});
+    ht_[right_join_key].emplace_back(HashJoinValue{HJGetValuesHelper(tuple, &schema)});
   }
 
   auto Find(const Tuple *tuple, const Schema &schema) const -> HashJoinIterator {
@@ -53,6 +94,7 @@ class SimpleHashJoinHashTable {
   auto GetHashJoinKey(const Tuple *tuple, const Schema &schema, const std::vector<AbstractExpressionRef> &exprs) const
       -> HashJoinKey {
     std::vector<Value> keys;
+    keys.reserve(exprs.size());
     for (const auto &expr : exprs) {
       keys.emplace_back(expr->Evaluate(tuple, schema));
     }
@@ -102,7 +144,7 @@ class HashJoinExecutor : public AbstractExecutor {
   Tuple left_tuple_;
   RID l_rid_;
   bool l_status_;
-  bool matched;
+  bool matched_;
 };
 
 }  // namespace bustub

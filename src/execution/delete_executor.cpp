@@ -21,18 +21,17 @@ DeleteExecutor::DeleteExecutor(ExecutorContext *exec_ctx, const DeletePlanNode *
     : AbstractExecutor(exec_ctx),
       plan_(plan),
       child_executor_(std::move(child_executor)),
-      schema_({Column{"#", TypeId::INTEGER}}),
-      finished(true) {}
+      schema_({Column{"#", TypeId::INTEGER}}) {}
 
 void DeleteExecutor::Init() {
   child_executor_->Init();
   table_info_ = exec_ctx_->GetCatalog()->GetTable(plan_->GetTableOid());
   index_info_arr_ = exec_ctx_->GetCatalog()->GetTableIndexes(table_info_->name_);
-  finished = false;
+  finished_ = false;
 }
 
 auto DeleteExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
-  if (finished) {
+  if (finished_) {
     return false;
   }
   Tuple child_tuple{};
@@ -42,7 +41,7 @@ auto DeleteExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
     const auto status = child_executor_->Next(&child_tuple, rid);
     if (!status) {
       *tuple = Tuple{{Value{TypeId::INTEGER, count}}, &schema_};
-      finished = true;
+      finished_ = true;
       return true;
     }
     // Delete

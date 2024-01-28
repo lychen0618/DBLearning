@@ -12,7 +12,9 @@
 
 #pragma once
 
+#include <functional>
 #include <memory>
+#include <queue>
 #include <utility>
 #include <vector>
 
@@ -29,6 +31,7 @@ namespace bustub {
  */
 class TopNExecutor : public AbstractExecutor {
  public:
+  using HeapType = std::priority_queue<Tuple, std::vector<Tuple>, std::function<bool(const Tuple &, const Tuple &)>>;
   /**
    * Construct a new TopNExecutor instance.
    * @param exec_ctx The executor context
@@ -63,5 +66,8 @@ class TopNExecutor : public AbstractExecutor {
   const TopNPlanNode *plan_;
   /** The child executor from which tuples are obtained */
   std::unique_ptr<AbstractExecutor> child_executor_;
+  HeapType heap_;
+  std::vector<Tuple> tuples_;
+  size_t num_in_heap_ = 0;
 };
 }  // namespace bustub

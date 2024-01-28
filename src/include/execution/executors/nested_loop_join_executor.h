@@ -14,6 +14,7 @@
 
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "execution/executor_context.h"
 #include "execution/executors/abstract_executor.h"
@@ -21,6 +22,7 @@
 #include "storage/table/tuple.h"
 
 namespace bustub {
+auto NLJGetValuesHelper(const Tuple *tuple, const Schema *schema) -> std::vector<Value>;
 
 /**
  * NestedLoopJoinExecutor executes a nested-loop JOIN on two tables.

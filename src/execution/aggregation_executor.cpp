@@ -26,7 +26,7 @@ AggregationExecutor::AggregationExecutor(ExecutorContext *exec_ctx, const Aggreg
 
 void AggregationExecutor::Init() {
   child_executor_->Init();
-  has_out_ = (plan_->GetGroupBys().size() == 0);
+  has_out_ = plan_->GetGroupBys().empty();
   aht_.Clear();
   // Get the next tuple
   Tuple child_tuple{};
