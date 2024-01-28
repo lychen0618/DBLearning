@@ -26,7 +26,7 @@ UpdateExecutor::UpdateExecutor(ExecutorContext *exec_ctx, const UpdatePlanNode *
 
 void UpdateExecutor::Init() {
   child_executor_->Init();
-  table_info_ = exec_ctx_->GetCatalog()->GetTable(plan_->GetTableOid());
+  table_info_ = exec_ctx_->GetCatalog()->GetTable(plan_->TableOid());
   index_info_arr_ = exec_ctx_->GetCatalog()->GetTableIndexes(table_info_->name_);
   finished_ = false;
 }
