@@ -68,6 +68,14 @@ auto Tuple::GetValue(const Schema *schema, const uint32_t column_idx) const -> V
   return Value::DeserializeFrom(data_ptr, column_type);
 }
 
+auto Tuple::GetValues(const Schema *schema) const -> std::vector<Value> {
+  std::vector<Value> values{};
+  for (uint32_t i = 0; i < schema->GetColumnCount(); ++i) {
+    values.push_back(GetValue(schema, i));
+  }
+  return values;
+}
+
 auto Tuple::KeyFromTuple(const Schema &schema, const Schema &key_schema, const std::vector<uint32_t> &key_attrs)
     -> Tuple {
   std::vector<Value> values;

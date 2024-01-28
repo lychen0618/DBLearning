@@ -13,6 +13,7 @@
 #pragma once
 
 #include <memory>
+#include <unordered_map>
 #include <utility>
 
 #include "execution/executor_context.h"
@@ -21,6 +22,46 @@
 #include "storage/table/tuple.h"
 
 namespace bustub {
+/**
+ * A simplified hash table that has all the necessary functionality for hash join.
+ */
+class SimpleHashJoinHashTable {
+ public:
+  using HashJoinIterator = std::unordered_map<HashJoinKey, std::vector<HashJoinValue>>::const_iterator;
+  SimpleHashJoinHashTable(const std::vector<AbstractExpressionRef> &left_key_exprs,
+                          const std::vector<AbstractExpressionRef> &right_key_exprs)
+      : left_key_expressions_(left_key_exprs), right_key_expressions_(right_key_exprs) {}
+
+  void InsertCombine(const Tuple *tuple, const Schema &schema) {
+    auto right_join_key = GetHashJoinKey(tuple, schema, right_key_expressions_);
+    if (ht_.count(right_join_key) == 0) {
+      ht_[right_join_key] = {};
+    }
+    ht_[right_join_key].emplace_back(HashJoinValue{tuple->GetValues(&schema)});
+  }
+
+  auto Find(const Tuple *tuple, const Schema &schema) const -> HashJoinIterator {
+    auto left_join_key = GetHashJoinKey(tuple, schema, left_key_expressions_);
+    return ht_.find(left_join_key);
+  }
+
+  void Clear() { ht_.clear(); }
+
+  auto End() -> HashJoinIterator { return ht_.cend(); }
+
+ private:
+  auto GetHashJoinKey(const Tuple *tuple, const Schema &schema, const std::vector<AbstractExpressionRef> &exprs) const
+      -> HashJoinKey {
+    std::vector<Value> keys;
+    for (const auto &expr : exprs) {
+      keys.emplace_back(expr->Evaluate(tuple, schema));
+    }
+    return {keys};
+  }
+  const std::vector<AbstractExpressionRef> &left_key_expressions_;
+  const std::vector<AbstractExpressionRef> &right_key_expressions_;
+  std::unordered_map<HashJoinKey, std::vector<HashJoinValue>> ht_{};
+};
 
 /**
  * HashJoinExecutor executes a nested-loop JOIN on two tables.
@@ -54,6 +95,14 @@ class HashJoinExecutor : public AbstractExecutor {
  private:
   /** The NestedLoopJoin plan node to be executed. */
   const HashJoinPlanNode *plan_;
+  std::unique_ptr<AbstractExecutor> left_executor_;
+  std::unique_ptr<AbstractExecutor> right_executor_;
+  SimpleHashJoinHashTable hht_;
+  uint32_t value_idx_ = 0;
+  Tuple left_tuple_;
+  RID l_rid_;
+  bool l_status_;
+  bool matched;
 };
 
 }  // namespace bustub

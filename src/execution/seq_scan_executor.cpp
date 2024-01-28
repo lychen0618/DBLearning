@@ -15,17 +15,18 @@
 namespace bustub {
 
 SeqScanExecutor::SeqScanExecutor(ExecutorContext *exec_ctx, const SeqScanPlanNode *plan)
-    : AbstractExecutor(exec_ctx),
-      plan_(plan),
-      iter_(exec_ctx_->GetCatalog()->GetTable(plan_->GetTableOid())->table_->MakeIterator()) {}
+    : AbstractExecutor(exec_ctx), plan_(plan) {}
 
-void SeqScanExecutor::Init() {}
+void SeqScanExecutor::Init() {
+  iter_ =
+      std::make_unique<TableIterator>(exec_ctx_->GetCatalog()->GetTable(plan_->GetTableOid())->table_->MakeIterator());
+}
 
 auto SeqScanExecutor::Next(Tuple *tuple, RID *rid) -> bool {
   bool found = false;
-  while (!iter_.IsEnd()) {
-    auto tuple_pair = iter_.GetTuple();
-    ++iter_;
+  while (!iter_->IsEnd()) {
+    auto tuple_pair = iter_->GetTuple();
+    ++(*iter_);
     if (!tuple_pair.first.is_deleted_) {
       found = true;
       *tuple = tuple_pair.second;
