@@ -25,7 +25,7 @@ InsertExecutor::InsertExecutor(ExecutorContext *exec_ctx, const InsertPlanNode *
 
 void InsertExecutor::Init() {
   child_executor_->Init();
-  table_info_ = exec_ctx_->GetCatalog()->GetTable(plan_->TableOid());
+  table_info_ = exec_ctx_->GetCatalog()->GetTable(plan_->GetTableOid());
   index_info_arr_ = exec_ctx_->GetCatalog()->GetTableIndexes(table_info_->name_);
 }
 
