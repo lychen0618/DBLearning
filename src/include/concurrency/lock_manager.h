@@ -27,6 +27,8 @@
 #include "common/rid.h"
 #include "concurrency/transaction.h"
 
+#define LOCK_MODE_NUM 5
+
 namespace bustub {
 
 class TransactionManager;
@@ -66,12 +68,16 @@ class LockManager {
    public:
     /** List of lock requests for the same resource (table or row) */
     std::list<std::shared_ptr<LockRequest>> request_queue_;
+    /** List of granted lock requests for the same resource (table or row) */
+    std::unordered_map<txn_id_t, std::shared_ptr<LockRequest>> granted_lock_req_map_;
     /** For notifying blocked transactions on this rid */
     std::condition_variable cv_;
     /** txn_id of an upgrading transaction (if any) */
     txn_id_t upgrading_ = INVALID_TXN_ID;
     /** coordination */
     std::mutex latch_;
+    /** flag represents locks currently held */
+    int granted_lock_cnts_[LOCK_MODE_NUM] = {0};
   };
 
   /**
@@ -317,6 +323,7 @@ class LockManager {
   TransactionManager *txn_manager_;
 
  private:
+  auto CheckIfCanLock(const std::shared_ptr<LockRequestQueue> &queue, LockMode lock_mode) -> bool;
   /** Spring 2023 */
   /* You are allowed to modify all functions below. */
   auto UpgradeLockTable(Transaction *txn, LockMode lock_mode, const table_oid_t &oid) -> bool;
