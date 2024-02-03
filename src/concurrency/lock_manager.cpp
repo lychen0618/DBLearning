@@ -136,8 +136,9 @@ auto LockManager::LockTable(Transaction *txn, LockMode lock_mode, const table_oi
   } else {
     queue->request_queue_.emplace_back(new LockRequest(txn_id, lock_mode, oid));
   }
-  while ((!CheckIfCanLock(queue, lock_mode) || queue->request_queue_.front()->txn_id_ != txn_id) &&
-         txn->GetState() != TransactionState::ABORTED) {  // TODO: this cond may wrong
+  while (txn->GetState() != TransactionState::ABORTED &&
+         (queue->request_queue_.front()->txn_id_ != txn_id ||
+          !CheckIfCanLock(queue, lock_mode))) {  // TODO: this cond may wrong
     std::unique_lock<std::mutex> l(queue->latch_, std::defer_lock);
     queue->cv_.wait(l);
   }
@@ -331,8 +332,9 @@ auto LockManager::LockRow(Transaction *txn, LockMode lock_mode, const table_oid_
   } else {
     queue->request_queue_.emplace_back(new LockRequest(txn_id, lock_mode, oid, rid));
   }
-  while ((!CheckIfCanLock(queue, lock_mode) || queue->request_queue_.front()->txn_id_ != txn_id) &&
-         txn->GetState() != TransactionState::ABORTED) {  // TODO: this cond may wrong
+  while (txn->GetState() != TransactionState::ABORTED &&
+         (queue->request_queue_.front()->txn_id_ != txn_id ||
+          !CheckIfCanLock(queue, lock_mode))) {  // TODO: this cond may wrong
     std::unique_lock<std::mutex> l(queue->latch_, std::defer_lock);
     queue->cv_.wait(l);
   }
@@ -420,21 +422,136 @@ void LockManager::UnlockAll() {
   // You probably want to unlock all table and txn locks here.
 }
 
-void LockManager::AddEdge(txn_id_t t1, txn_id_t t2) {}
+void LockManager::AddEdge(txn_id_t t1, txn_id_t t2) {
+  std::unordered_map<txn_id_t, std::vector<txn_id_t>>::iterator it;
+  if ((it = waits_for_.find(t1)) == waits_for_.end()) {
+    waits_for_[t1] = {};
+    it = waits_for_.find(t1);
+  }
+  it->second.push_back(t2);
+}
 
-void LockManager::RemoveEdge(txn_id_t t1, txn_id_t t2) {}
+void LockManager::RemoveEdge(txn_id_t t1, txn_id_t t2) {
+  auto it = waits_for_.find(t1);
+  if (it == waits_for_.end()) {
+    return;
+  }
+  for (uint32_t idx = 0; idx < it->second.size(); ++idx) {
+    if (it->second[idx] == t2) {
+      it->second.erase(it->second.begin() + idx);
+      break;
+    }
+  }
+}
 
-auto LockManager::HasCycle(txn_id_t *txn_id) -> bool { return false; }
+auto LockManager::HasCycle(txn_id_t *txn_id) -> bool {
+  txn_id_t prev_youngest_txn_id = youngest_txn_id_;
+  txn_id_t prev_cur_txn_id = cur_txn_id_;
+  visited_txn_id_set_.insert(cur_txn_id_);
+  youngest_txn_id_ = std::max(youngest_txn_id_, cur_txn_id_);
+  auto txn2s = waits_for_[cur_txn_id_];
+  for (auto &txn2 : txn2s) {
+    if (waits_for_.count(txn2) == 0) {
+      continue;
+    }
+    if (visited_txn_id_set_.count(txn2) != 0) {
+      *txn_id = std::max(youngest_txn_id_, txn2);
+      return true;
+    }
+    cur_txn_id_ = txn2;
+    bool res = HasCycle(txn_id);
+    if (res) {
+      return res;
+    }
+  }
+  cur_txn_id_ = prev_cur_txn_id;
+  visited_txn_id_set_.erase(cur_txn_id_);
+  youngest_txn_id_ = prev_youngest_txn_id;
+  return false;
+}
 
 auto LockManager::GetEdgeList() -> std::vector<std::pair<txn_id_t, txn_id_t>> {
-  std::vector<std::pair<txn_id_t, txn_id_t>> edges(0);
+  std::vector<std::pair<txn_id_t, txn_id_t>> edges;
+  for (auto it = waits_for_.begin(); it != waits_for_.end(); ++it) {
+    for (auto &t2 : it->second) {
+      edges.emplace_back(it->first, t2);
+    }
+  }
   return edges;
 }
 
 void LockManager::RunCycleDetection() {
   while (enable_cycle_detection_) {
     std::this_thread::sleep_for(cycle_detection_interval);
-    {  // TODO(students): detect deadlock
+    {
+      printf("Start new dead lock detection\n");
+      std::lock_guard<std::mutex> table_lg(table_lock_map_latch_);
+      std::lock_guard<std::mutex> row_lg(row_lock_map_latch_);
+      std::lock_guard<std::mutex> waits_for_lg(waits_for_latch_);
+      std::unordered_map<txn_id_t, std::vector<std::shared_ptr<LockRequestQueue>>> txn_wake_up_map;
+      // Build Waits-for graph representation
+      for (auto &p : table_lock_map_) {
+        std::lock_guard<std::mutex> queue_lg(p.second->latch_);
+        // TODO: find those really blocks waiting lock requests
+        for (auto &txn1_req : p.second->request_queue_) {
+          auto txn1 = txn1_req->txn_id_;
+          txn_wake_up_map[txn1].push_back(p.second);
+          for (auto [txn2, _] : p.second->granted_lock_req_map_) {
+            AddEdge(txn1, txn2);
+          }
+        }
+      }
+      for (auto &p : row_lock_map_) {
+        std::lock_guard<std::mutex> queue_lg(p.second->latch_);
+        // TODO: find those really blocks waiting lock requests
+        for (auto &txn1_req : p.second->request_queue_) {
+          auto txn1 = txn1_req->txn_id_;
+          txn_wake_up_map[txn1].push_back(p.second);
+          for (auto [txn2, _] : p.second->granted_lock_req_map_) {
+            AddEdge(txn1, txn2);
+          }
+        }
+      }
+      std::vector<txn_id_t> txn_ids;
+      for (auto &p : waits_for_) {
+        txn_ids.push_back(p.first);
+      }
+      for (auto &txn_id : txn_ids) {
+        auto it = waits_for_.find(txn_id);
+        std::sort(it->second.begin(), it->second.end());
+      }
+      // Break cycles
+      std::sort(txn_ids.begin(), txn_ids.end());
+      std::unordered_set<txn_id_t> txn_id_sets;
+      printf("1\n");
+      for (uint32_t idx = 0; idx < txn_ids.size();) {
+        const auto &txn_id = txn_ids[idx];
+        if (waits_for_.count(txn_id) == 0 || txn_id_sets.count(txn_id) != 0) {
+          ++idx;
+          continue;
+        }
+        visited_txn_id_set_.clear();
+        cur_txn_id_ = txn_id;
+        youngest_txn_id_ = -1;
+        txn_id_t break_txn_id;
+        bool has_cycle = HasCycle(&break_txn_id);
+        if (!has_cycle) {
+          txn_id_sets.insert(visited_txn_id_set_.begin(), visited_txn_id_set_.end());
+          ++idx;
+        } else {
+          printf("Has cycle: %d\n", break_txn_id);
+          waits_for_.erase(break_txn_id);
+          // Set abort state of break_txn_id
+          auto txn = txn_manager_->GetTransaction(break_txn_id);
+          txn->SetState(TransactionState::ABORTED);
+          for (auto &q : txn_wake_up_map[break_txn_id]) {
+            q->cv_.notify_all();
+          }
+        }
+      }
+      printf("Finish one dead lock detection\n");
+      // Clear
+      waits_for_.clear();
     }
   }
 }

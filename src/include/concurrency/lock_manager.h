@@ -352,6 +352,10 @@ class LockManager {
   /** Waits-for graph representation. */
   std::unordered_map<txn_id_t, std::vector<txn_id_t>> waits_for_;
   std::mutex waits_for_latch_;
+  /** Structures for dfs cycle detection */
+  std::unordered_set<txn_id_t> visited_txn_id_set_;
+  txn_id_t cur_txn_id_;
+  txn_id_t youngest_txn_id_;
 };
 
 }  // namespace bustub
