@@ -43,6 +43,8 @@ class InsertPlanNode : public AbstractPlanNode {
   /** @return The identifier of the table into which tuples are inserted */
   auto GetTableOid() const -> table_oid_t { return table_oid_; }
 
+  auto TableOid() const -> table_oid_t { return table_oid_; }
+
   /** @return the child plan providing tuples to be inserted */
   auto GetChildPlan() const -> AbstractPlanNodeRef {
     BUSTUB_ASSERT(GetChildren().size() == 1, "Insert should have only one child plan.");

@@ -43,6 +43,8 @@ class DeletePlanNode : public AbstractPlanNode {
   /** @return The identifier of the table from which tuples are deleted*/
   auto GetTableOid() const -> table_oid_t { return table_oid_; }
 
+  auto TableOid() const -> table_oid_t { return table_oid_; }
+
   /** @return The child plan providing tuples to be deleted */
   auto GetChildPlan() const -> AbstractPlanNodeRef {
     BUSTUB_ASSERT(GetChildren().size() == 1, "delete should have at most one child plan.");

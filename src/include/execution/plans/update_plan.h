@@ -46,6 +46,8 @@ class UpdatePlanNode : public AbstractPlanNode {
   /** @return The identifier of the table that should be updated */
   auto GetTableOid() const -> table_oid_t { return table_oid_; }
 
+  auto TableOid() const -> table_oid_t { return table_oid_; }
+
   /** @return The child plan providing tuples to be inserted */
   auto GetChildPlan() const -> AbstractPlanNodeRef {
     BUSTUB_ASSERT(GetChildren().size() == 1, "UPDATE should have exactly one child plan.");

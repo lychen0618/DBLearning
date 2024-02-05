@@ -25,7 +25,12 @@ InsertExecutor::InsertExecutor(ExecutorContext *exec_ctx, const InsertPlanNode *
 
 void InsertExecutor::Init() {
   child_executor_->Init();
-  table_info_ = exec_ctx_->GetCatalog()->GetTable(plan_->GetTableOid());
+  bool res = exec_ctx_->GetLockManager()->LockTable(exec_ctx_->GetTransaction(),
+                                                    LockManager::LockMode::INTENTION_EXCLUSIVE, plan_->TableOid());
+  if (!res) {
+    throw ExecutionException("Failed to lock table in InsertExecutor.");
+  }
+  table_info_ = exec_ctx_->GetCatalog()->GetTable(plan_->TableOid());
   index_info_arr_ = exec_ctx_->GetCatalog()->GetTableIndexes(table_info_->name_);
 }
 
@@ -43,7 +48,9 @@ auto InsertExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
       table_info_ = nullptr;
       return true;
     }
-    auto new_rid = table_info_->table_->InsertTuple(TupleMeta{INVALID_TXN_ID, INVALID_TXN_ID, false}, child_tuple);
+    auto txn = exec_ctx_->GetTransaction();
+    auto new_rid = table_info_->table_->InsertTuple(TupleMeta{txn->GetTransactionId(), INVALID_TXN_ID, false},
+                                                    child_tuple, exec_ctx_->GetLockManager(), txn, table_info_->oid_);
     if (new_rid == std::nullopt) {
       break;
     }
@@ -51,7 +58,7 @@ auto InsertExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
     for (auto &index_info : index_info_arr_) {
       Tuple key =
           child_tuple.KeyFromTuple(table_info_->schema_, index_info->key_schema_, index_info->index_->GetKeyAttrs());
-      bool res = index_info->index_->InsertEntry(key, *new_rid, nullptr);
+      bool res = index_info->index_->InsertEntry(key, *new_rid, txn);
       if (!res) {
         flag = false;
         break;
@@ -60,6 +67,13 @@ auto InsertExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
     if (!flag) {
       break;
     }
+    txn->LockTxn();
+    txn->AppendTableWriteRecord(TableWriteRecord{table_info_->oid_, *new_rid, table_info_->table_.get()});
+    for (auto &index_info : index_info_arr_) {
+      txn->AppendIndexWriteRecord(IndexWriteRecord(*new_rid, table_info_->oid_, WType::INSERT, child_tuple,
+                                                   index_info->index_oid_, exec_ctx_->GetCatalog()));
+    }
+    txn->UnlockTxn();
     count++;
   }
   return false;

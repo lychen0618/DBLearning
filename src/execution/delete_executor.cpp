@@ -25,7 +25,7 @@ DeleteExecutor::DeleteExecutor(ExecutorContext *exec_ctx, const DeletePlanNode *
 
 void DeleteExecutor::Init() {
   child_executor_->Init();
-  table_info_ = exec_ctx_->GetCatalog()->GetTable(plan_->GetTableOid());
+  table_info_ = exec_ctx_->GetCatalog()->GetTable(plan_->TableOid());
   index_info_arr_ = exec_ctx_->GetCatalog()->GetTableIndexes(table_info_->name_);
   finished_ = false;
 }
@@ -48,11 +48,19 @@ auto DeleteExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
     TupleMeta tuple_meta = table_info_->table_->GetTupleMeta(*rid);
     tuple_meta.is_deleted_ = true;
     table_info_->table_->UpdateTupleMeta(tuple_meta, *rid);
+    auto txn = exec_ctx_->GetTransaction();
     for (auto &index_info : index_info_arr_) {
       Tuple key =
           child_tuple.KeyFromTuple(table_info_->schema_, index_info->key_schema_, index_info->index_->GetKeyAttrs());
-      index_info->index_->DeleteEntry(key, *rid, nullptr);
+      index_info->index_->DeleteEntry(key, *rid, txn);
     }
+    txn->LockTxn();
+    txn->AppendTableWriteRecord(TableWriteRecord{table_info_->oid_, *rid, table_info_->table_.get()});
+    for (auto &index_info : index_info_arr_) {
+      txn->AppendIndexWriteRecord(IndexWriteRecord(*rid, table_info_->oid_, WType::DELETE, child_tuple,
+                                                   index_info->index_oid_, exec_ctx_->GetCatalog()));
+    }
+    txn->UnlockTxn();
     count++;
   }
   return false;

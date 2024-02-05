@@ -155,6 +155,35 @@ void TableLockUpgradeTest1() {
 }
 TEST(LockManagerTest, TableLockUpgradeTest1) { TableLockUpgradeTest1(); }  // NOLINT
 
+/** Upgrading single transaction from X -> S */
+void TableLockIncompatibleUpgradeTest() {
+  LockManager lock_mgr{};
+  TransactionManager txn_mgr{&lock_mgr};
+
+  table_oid_t oid = 0;
+  auto txn1 = txn_mgr.Begin();
+
+  /** Take X lock */
+  EXPECT_EQ(true, lock_mgr.LockTable(txn1, LockManager::LockMode::EXCLUSIVE, oid));
+  CheckTableLockSizes(txn1, 0, 1, 0, 0, 0);
+
+  /** Upgrade X to S */
+  try {
+    lock_mgr.LockTable(txn1, LockManager::LockMode::SHARED, oid);
+  } catch (TransactionAbortException &e) {
+    CheckAborted(txn1);
+    CheckTableLockSizes(txn1, 0, 1, 0, 0, 0);
+  }
+
+  /** Clean up */
+  txn_mgr.Abort(txn1);
+  CheckAborted(txn1);
+  CheckTableLockSizes(txn1, 0, 0, 0, 0, 0);
+
+  delete txn1;
+}
+TEST(LockManagerTest, TableLockIncompatibleUpgradeTest) { TableLockIncompatibleUpgradeTest(); }  // NOLINT
+
 void RowLockTest1() {
   LockManager lock_mgr{};
   TransactionManager txn_mgr{&lock_mgr};

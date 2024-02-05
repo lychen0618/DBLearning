@@ -333,8 +333,8 @@ class LockManager {
   void GrantNewLocksIfPossible(LockRequestQueue *lock_request_queue);
   auto CanLockUpgrade(LockMode curr_lock_mode, LockMode requested_lock_mode) -> bool;
   auto CheckAppropriateLockOnTable(Transaction *txn, const table_oid_t &oid, LockMode row_lock_mode) -> bool;
-  auto FindCycle(txn_id_t source_txn, std::vector<txn_id_t> &path, std::unordered_set<txn_id_t> &on_path,
-                 std::unordered_set<txn_id_t> &visited, txn_id_t *abort_txn_id) -> bool;
+  auto FindCycle(txn_id_t source_txn, txn_id_t youngest_txn_id, std::unordered_set<txn_id_t> &visited,
+                 std::unordered_set<txn_id_t> &on_path, txn_id_t *abort_txn_id) -> bool;
   void UnlockAll();
 
   /** Structure that holds lock requests for a given table oid */
@@ -352,10 +352,6 @@ class LockManager {
   /** Waits-for graph representation. */
   std::unordered_map<txn_id_t, std::vector<txn_id_t>> waits_for_;
   std::mutex waits_for_latch_;
-  /** Structures for dfs cycle detection */
-  std::unordered_set<txn_id_t> visited_txn_id_set_;
-  txn_id_t cur_txn_id_;
-  txn_id_t youngest_txn_id_;
 };
 
 }  // namespace bustub
